@@ -1,6 +1,6 @@
 #python 03_generate_rnn_data.py
 
-from vae.arch import VAE
+from vaegan.arch import VAEGAN
 import argparse
 import config
 import numpy as np
@@ -26,7 +26,7 @@ def get_filelist(N):
 
     return filelist, N
 
-def encode_episode(vae, episode):
+def encode_episode(vaegan, episode):
 
     obs = episode['obs']
     action = episode['action']
@@ -36,7 +36,7 @@ def encode_episode(vae, episode):
     done = done.astype(int)  
     reward = np.where(reward>0, 1, 0) * np.where(done==0, 1, 0)
 
-    mu, log_var, _ = vae.encoder.predict(obs)
+    mu, log_var, _ = vaegan.encoder.predict(obs)
     
     initial_mu = mu[0, :]
     initial_log_var = log_var[0, :]
@@ -55,14 +55,14 @@ def main(args):
     print(N)
     print('')
 
-    vae = VAE()
+    vaegan = VAEGAN()
 
     try:
-      vae.set_weights('./vae/weights.h5')
+      vaegan.set_weights('./vaegan/weights.h5')
       # print('~~~ weights loaded ~~~')
     except Exception as e:
       print(e)
-      print("./vae/weights.h5 does not exist - ensure you have run 02_train_vae.py first")
+      print("./vaegan/weights.h5 does not exist - ensure you have run 02_train_vaegan.py first")
       raise
 
 
@@ -80,7 +80,7 @@ def main(args):
         # print('~~~ rollout data ~~~')
         # print(rollout_data)
 
-        mu, log_var, action, reward, done, initial_mu, initial_log_var = encode_episode(vae, rollout_data)
+        mu, log_var, action, reward, done, initial_mu, initial_log_var = encode_episode(vaegan, rollout_data)
         # print('~~~ mu ~~~')
         # print(mu)
 

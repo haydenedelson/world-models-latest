@@ -16,7 +16,7 @@ import config
 from gym.wrappers import Monitor
 
 from env import make_env
-from vae.arch import VAE
+from vaegan.arch import VAEGAN
 from rnn.arch import RNN
 from controller.arch import Controller
 
@@ -30,143 +30,143 @@ ADD_NOISE = False
 
 def make_model():
 
-    vae = VAE()
-    vae.set_weights('./vae/weights.h5')
+  vaegan = VAEGAN()
+  vaegan.set_weights('./vaegan/weights.h5')
 
-    rnn = RNN()
-    rnn.set_weights('./rnn/weights.h5')
+  rnn = RNN()
+  rnn.set_weights('./rnn/weights.h5')
 
-    controller = Controller()
+  controller = Controller()
 
-    model = Model(controller, vae, rnn)
-    return model
+  model = Model(controller, vaegan, rnn)
+  return model
 
 class Model:
-    def __init__(self, controller, vae, rnn):
+  def __init__(self, controller, vaegan, rnn):
 
-        self.input_size = vae.input_dim
-        self.vae = vae
-        self.rnn = rnn
+    self.input_size = vaegan.input_dim
+    self.vaegan = vaegan
+    self.rnn = rnn
 
-        self.output_noise = controller.output_noise
-        self.sigma_bias = controller.noise_bias # bias in stdev of output
-        self.sigma_factor = 0.5 # multiplicative in stdev of output
+    self.output_noise = controller.output_noise
+    self.sigma_bias = controller.noise_bias # bias in stdev of output
+    self.sigma_factor = 0.5 # multiplicative in stdev of output
 
-        if controller.time_factor > 0:    
-            self.time_factor = float(controller.time_factor)    
-            self.time_input = 1
-        else:
-            self.time_input = 0
-
-        self.output_size = controller.output_size
-
-        self.sample_output = False
-        self.activations = controller.activations
-
-        self.weight = []
-        self.bias = []
-        self.bias_log_std = []
-        self.bias_std = []
-        self.param_count = 0
-
-        self.hidden = np.zeros(self.rnn.hidden_units)
-        self.cell_values = np.zeros(self.rnn.hidden_units)
-
-        self.shapes = [(self.rnn.hidden_units + self.rnn.z_dim, self.output_size)]
-
-        idx = 0
-        for shape in self.shapes:
-            self.weight.append(np.zeros(shape=shape))
-            self.bias.append(np.zeros(shape=shape[1]))
-            self.param_count += (np.product(shape) + shape[1])
-            if self.output_noise[idx]:
-                self.param_count += shape[1]
-            log_std = np.zeros(shape=shape[1])
-            self.bias_log_std.append(log_std)
-            out_std = np.exp(self.sigma_factor*log_std + self.sigma_bias)
-            self.bias_std.append(out_std)
-            idx += 1
-
-        self.render_mode = False
-
-    def make_env(self, env_name, seed=-1, render_mode=False, model = None):
-        self.render_mode = render_mode
-        self.env_name = env_name
-        self.env = make_env(env_name, seed=seed, render_mode=render_mode, model = model)
-
-
-    def get_action(self, x, t=0, add_noise=False):
-        # if add_noise = True, ignore sampling.
-        h = np.array(x).flatten()
-        if self.time_input == 1:
-            time_signal = float(t) / self.time_factor
-            h = np.concatenate([h, [time_signal]])
-        num_layers = len(self.weight)
-        for i in range(num_layers):
-            w = self.weight[i]
-            b = self.bias[i]
-            h = np.matmul(h, w) + b
-            if (self.output_noise[i] and add_noise):
-                out_size = self.shapes[i][1]
-                out_std = self.bias_std[i]
-                output_noise = np.random.randn(out_size)*out_std
-                h += output_noise
-            h = self.activations(h)
-
-        if self.sample_output:
-            h = sample(h)
-
-        return h
-
-
-
-    def set_model_params(self, model_params):
-        pointer = 0
-        for i in range(len(self.shapes)):
-            w_shape = self.shapes[i]
-            b_shape = self.shapes[i][1]
-            s_w = np.product(w_shape)
-            s = s_w + b_shape
-            chunk = np.array(model_params[pointer:pointer+s])
-            self.weight[i] = chunk[:s_w].reshape(w_shape)
-            self.bias[i] = chunk[s_w:].reshape(b_shape)
-            pointer += s
-            if self.output_noise[i]:
-                s = b_shape
-                self.bias_log_std[i] = np.array(model_params[pointer:pointer+s])
-                self.bias_std[i] = np.exp(self.sigma_factor*self.bias_log_std[i] + self.sigma_bias)
-                if self.render_mode:
-                    print("bias_std, layer", i, self.bias_std[i])
-            pointer += s
-
-    def load_model(self, filename):
-        with open(filename) as f:    
-            data = json.load(f)
-        print('loading file %s' % (filename))
-        self.data = data
-        model_params = np.array(data[0]) # assuming other stuff is in data
-        self.set_model_params(model_params)
-
-    def get_random_model_params(self, stdev=0.1):
-        return np.random.randn(self.param_count)*stdev
-
-    def reset(self):
-        self.hidden = np.zeros(self.rnn.hidden_units)
-        self.cell_values = np.zeros(self.rnn.hidden_units) 
-
-    def update(self, obs, t):
-    if obs.shape == self.vae.input_dim:
-          return self.vae.encoder.predict(np.array([obs]))[2][0]
+    if controller.time_factor > 0:    
+      self.time_factor = float(controller.time_factor)    
+      self.time_input = 1
     else:
-          return obs
+      self.time_input = 0
+    
+    self.output_size = controller.output_size
+    
+    self.sample_output = False
+    self.activations = controller.activations
+
+    self.weight = []
+    self.bias = []
+    self.bias_log_std = []
+    self.bias_std = []
+    self.param_count = 0
+
+    self.hidden = np.zeros(self.rnn.hidden_units)
+    self.cell_values = np.zeros(self.rnn.hidden_units)
+
+    self.shapes = [(self.rnn.hidden_units + self.rnn.z_dim, self.output_size)]
+
+    idx = 0
+    for shape in self.shapes:
+      self.weight.append(np.zeros(shape=shape))
+      self.bias.append(np.zeros(shape=shape[1]))
+      self.param_count += (np.product(shape) + shape[1])
+      if self.output_noise[idx]:
+        self.param_count += shape[1]
+      log_std = np.zeros(shape=shape[1])
+      self.bias_log_std.append(log_std)
+      out_std = np.exp(self.sigma_factor*log_std + self.sigma_bias)
+      self.bias_std.append(out_std)
+      idx += 1
+
+    self.render_mode = False
+
+  def make_env(self, env_name, seed=-1, render_mode=False, model = None):
+    self.render_mode = render_mode
+    self.env_name = env_name
+    self.env = make_env(env_name, seed=seed, render_mode=render_mode, model = model)
+
+
+  def get_action(self, x, t=0, add_noise=False):
+    # if add_noise = True, ignore sampling.
+    h = np.array(x).flatten()
+    if self.time_input == 1:
+      time_signal = float(t) / self.time_factor
+      h = np.concatenate([h, [time_signal]])
+    num_layers = len(self.weight)
+    for i in range(num_layers):
+      w = self.weight[i]
+      b = self.bias[i]
+      h = np.matmul(h, w) + b
+      if (self.output_noise[i] and add_noise):
+        out_size = self.shapes[i][1]
+        out_std = self.bias_std[i]
+        output_noise = np.random.randn(out_size)*out_std
+        h += output_noise
+      h = self.activations(h)
+
+    if self.sample_output:
+      h = sample(h)
+
+    return h
+
+
+
+  def set_model_params(self, model_params):
+    pointer = 0
+    for i in range(len(self.shapes)):
+      w_shape = self.shapes[i]
+      b_shape = self.shapes[i][1]
+      s_w = np.product(w_shape)
+      s = s_w + b_shape
+      chunk = np.array(model_params[pointer:pointer+s])
+      self.weight[i] = chunk[:s_w].reshape(w_shape)
+      self.bias[i] = chunk[s_w:].reshape(b_shape)
+      pointer += s
+      if self.output_noise[i]:
+        s = b_shape
+        self.bias_log_std[i] = np.array(model_params[pointer:pointer+s])
+        self.bias_std[i] = np.exp(self.sigma_factor*self.bias_log_std[i] + self.sigma_bias)
+        if self.render_mode:
+          print("bias_std, layer", i, self.bias_std[i])
+        pointer += s
+
+  def load_model(self, filename):
+    with open(filename) as f:    
+      data = json.load(f)
+    print('loading file %s' % (filename))
+    self.data = data
+    model_params = np.array(data[0]) # assuming other stuff is in data
+    self.set_model_params(model_params)
+
+  def get_random_model_params(self, stdev=0.1):
+    return np.random.randn(self.param_count)*stdev
+
+  def reset(self):
+    self.hidden = np.zeros(self.rnn.hidden_units)
+    self.cell_values = np.zeros(self.rnn.hidden_units) 
+
+  def update(self, obs, t):
+    if obs.shape == self.vaegan.input_dim:
+      return self.vaegan.encoder.predict(np.array([obs]))[2][0]
+    else:
+      return obs
 
 def evaluate(model, num_episode, max_len):
 
-    reward, t = simulate(model, num_episode=num_episode, max_len=max_len)
+  reward, t = simulate(model, num_episode=num_episode, max_len=max_len)
 
-    total_reward = np.mean(reward)
+  total_reward = np.mean(reward)
 
-    return reward, total_reward
+  return reward, total_reward
 
 
 
@@ -211,7 +211,7 @@ def simulate(model, num_episode=5, seed=-1, max_len=-1, generate_data_mode = Fal
     for t in range(max_episode_length):
 
       # print(f'Timestep {t}')
-      if obs.shape == model.vae.input_dim: ### running in real environment
+      if obs.shape == model.vaegan.input_dim: ### running in real environment
         obs = config.adjust_obs(obs)
         reward = config.adjust_reward(reward)
 
@@ -222,16 +222,16 @@ def simulate(model, num_episode=5, seed=-1, max_len=-1, generate_data_mode = Fal
       # else:
       #   model.env.render('rgb_array')
 
-      vae_encoded_obs = model.update(obs, t)
+      vaegan_encoded_obs = model.update(obs, t)
 
-      input_to_rnn = [np.array([[np.concatenate([vae_encoded_obs, action, [reward]])]]),np.array([model.hidden]),np.array([model.cell_values])]
+      input_to_rnn = [np.array([[np.concatenate([vaegan_encoded_obs, action, [reward]])]]),np.array([model.hidden]),np.array([model.cell_values])]
       start = time.process_time()
       out = model.rnn.forward.predict(input_to_rnn)
       y_pred = out[0][0][0]
       model.hidden = out[1][0]
       model.cell_values = out[2][0]
 
-      controller_obs = np.concatenate([vae_encoded_obs,model.hidden])
+      controller_obs = np.concatenate([vaegan_encoded_obs,model.hidden])
 
       if generate_data_mode:
         action = config.generate_data_action(t=t, env = model.env)
@@ -341,3 +341,4 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   main(args)
+

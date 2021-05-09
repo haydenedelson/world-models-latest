@@ -2,7 +2,7 @@
 # - eg. to run from current directory:
 #     ./launch-docker-cpu.sh $(pwd)
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    docker run --rm -p 8888:8888 -it -v $1:/Worldmodels worldmodels-image-cpu
+    docker run --rm -p 8888:8888 -it -v $1:/Worldmodels worldmodels-image
 else
-    docker run --rm --network=host -it -v $1:/Worldmodels worldmodels-image-cpu
+    docker run --rm --network=host -it -v $1:/Worldmodels worldmodels-image
 fi
