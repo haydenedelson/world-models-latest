@@ -1,5 +1,3 @@
-Repository for Hayden Edelson (hre216), Racquel Fygenson (rlf9859), and Kyle Makinen (km4777)
-
 # WorldModels
 
 An implementation of the ideas from this paper https://arxiv.org/pdf/1803.10122.pdf
